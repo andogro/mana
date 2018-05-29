@@ -229,7 +229,14 @@ defmodule EvmTest do
           {hex_to_bin(key), hex_to_bin(value)}
         end
 
-      {hex_to_int(address), storage}
+      account = %{
+        storage: storage,
+        balance: hex_to_int(account_state["balance"]),
+        code: hex_to_bin(account_state["code"]),
+        nonce: hex_to_int(account_state["nonce"])
+      }
+
+      {hex_to_int(address), account}
     end
     |> Enum.reject(fn {_key, value} -> value == %{} end)
     |> Enum.into(%{})
@@ -238,14 +245,24 @@ defmodule EvmTest do
   def actual_state(mock_account_interface) do
     mock_account_interface
     |> AccountInterface.dump_storage()
-    |> Enum.reject(fn {_key, value} -> value == %{} end)
     |> Enum.into(%{}, fn {address, storage} ->
       storage =
         Enum.into(storage, %{}, fn {key, value} ->
           {:binary.encode_unsigned(key), :binary.encode_unsigned(value)}
         end)
 
-      {address, storage}
+      nonce = AccountInterface.get_account_nonce(mock_account_interface, address)
+      code = AccountInterface.get_account_code(mock_account_interface, address)
+      balance = AccountInterface.get_account_balance(mock_account_interface, address)
+
+      account = %{
+        nonce: nonce,
+        code: code,
+        balance: balance,
+        storage: storage
+      }
+
+      {address, account}
     end)
   end
 

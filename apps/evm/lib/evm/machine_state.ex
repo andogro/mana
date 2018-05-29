@@ -6,11 +6,7 @@ defmodule EVM.MachineState do
   This is most often seen as µ in the Yellow Paper.
   """
 
-  alias EVM.Gas
-  alias EVM.Stack
-  alias EVM.MachineState
-  alias EVM.ProgramCounter
-  alias EVM.ExecEnv
+  alias EVM.{Gas, Stack, MachineState, ProgramCounter, ExecEnv}
   alias EVM.Operation.Metadata
 
   # g
@@ -75,7 +71,7 @@ defmodule EVM.MachineState do
   end
 
   @doc """
-  Pops n values off the stack
+  Pops n values off the stack.
 
   ## Examples
 

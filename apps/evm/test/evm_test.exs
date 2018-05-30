@@ -47,7 +47,9 @@ defmodule EvmTest do
 
   test "Ethereum Common Tests" do
     for {test_group_name, _test_group} <- @passing_tests_by_group do
-      for {_test_name, test} <- passing_tests(test_group_name) do
+      for {test_name, test} <- passing_tests(test_group_name) do
+        IO.puts "\n#{test_group_name}, #{test_name}\n"
+
         {gas, sub_state, exec_env, _} = run_test(test)
         assert_state(test, exec_env.account_interface)
 
@@ -65,7 +67,8 @@ defmodule EvmTest do
 
   defp run_test(test) do
     exec_env = get_exec_env(test)
-    EVM.VM.run(hex_to_int(test["exec"]["gas"]), exec_env)
+    gas = hex_to_int(test["exec"]["gas"])
+    EVM.VM.run(gas, exec_env)
   end
 
   defp get_exec_env(test) do
@@ -214,12 +217,13 @@ defmodule EvmTest do
 
   def assert_state(test, mock_account_interface) do
     if Map.get(test, "post") do
-      assert expected_state(test) == actual_state(mock_account_interface)
+      assert expected_state(test) == actual_state(test, mock_account_interface)
     end
   end
 
   def expected_state(test) do
     post = Map.get(test, "post", %{})
+    sender = hex_to_int(test["exec"]["caller"])
 
     for {address, account_state} <- post, into: %{} do
       storage = Map.get(account_state, "storage")
@@ -238,13 +242,15 @@ defmodule EvmTest do
 
       {hex_to_int(address), account}
     end
-    |> Enum.reject(fn {_key, value} -> value == %{} end)
+    |> Enum.reject(fn {key, value} -> value == %{} || key == sender end)
     |> Enum.into(%{})
   end
 
-  def actual_state(mock_account_interface) do
+  def actual_state(test, mock_account_interface) do
+    sender = hex_to_int(test["exec"]["caller"])
     mock_account_interface
     |> AccountInterface.dump_storage()
+    |> Map.delete(sender)
     |> Enum.into(%{}, fn {address, storage} ->
       storage =
         Enum.into(storage, %{}, fn {key, value} ->

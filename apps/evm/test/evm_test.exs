@@ -48,7 +48,7 @@ defmodule EvmTest do
   test "Ethereum Common Tests" do
     for {test_group_name, _test_group} <- @passing_tests_by_group do
       for {test_name, test} <- passing_tests(test_group_name) do
-        IO.puts "\n#{test_group_name}, #{test_name}\n"
+        IO.puts("\n#{test_group_name}, #{test_name}\n")
 
         {gas, sub_state, exec_env, _} = run_test(test)
         assert_state(test, exec_env.account_interface)
@@ -74,13 +74,13 @@ defmodule EvmTest do
   defp get_exec_env(test) do
     %EVM.ExecEnv{
       account_interface: account_interface(test),
-      address: hex_to_int(test["exec"]["address"]),
+      address: hex_to_bin(test["exec"]["address"]),
       block_interface: block_interface(test),
       data: hex_to_bin(test["exec"]["data"]),
       gas_price: hex_to_bin(test["exec"]["gasPrice"]),
       machine_code: hex_to_bin(test["exec"]["code"]),
       originator: hex_to_bin(test["exec"]["origin"]),
-      sender: hex_to_int(test["exec"]["caller"]),
+      sender: hex_to_bin(test["exec"]["caller"]),
       value_in_wei: hex_to_bin(test["exec"]["value"])
     }
   end
@@ -95,7 +95,7 @@ defmodule EvmTest do
 
   def account_interface(test) do
     account_map = %{
-      hex_to_int(test["exec"]["caller"]) => %{
+      hex_to_bin(test["exec"]["caller"]) => %{
         balance: 0,
         code: hex_to_bin(test["exec"]["code"]),
         nonce: 0,
@@ -112,7 +112,7 @@ defmodule EvmTest do
           end)
 
         Map.merge(address_map, %{
-          hex_to_int(address) => %{
+          hex_to_bin(address) => %{
             balance: hex_to_int(account["balance"]),
             code: hex_to_bin(account["code"]),
             nonce: hex_to_int(account["nonce"]),
@@ -157,7 +157,7 @@ defmodule EvmTest do
     last_block_header = %Block.Header{
       number: hex_to_int(test["env"]["currentNumber"]),
       timestamp: hex_to_int(test["env"]["currentTimestamp"]),
-      beneficiary: hex_to_int(test["env"]["currentCoinbase"]),
+      beneficiary: hex_to_bin(test["env"]["currentCoinbase"]),
       mix_hash: 0,
       parent_hash: hex_to_int(test["env"]["currentNumber"]) - 1,
       gas_limit: hex_to_int(test["env"]["currentGasLimit"]),
@@ -217,20 +217,22 @@ defmodule EvmTest do
 
   def assert_state(test, mock_account_interface) do
     if Map.get(test, "post") do
-      assert expected_state(test) == actual_state(test, mock_account_interface)
+      expected = expected_state(test)
+      actual = actual_state(test, mock_account_interface)
+      assert expected == actual
     end
   end
 
   def expected_state(test) do
     post = Map.get(test, "post", %{})
-    sender = hex_to_int(test["exec"]["caller"])
+    sender = hex_to_bin(test["exec"]["caller"])
 
     for {address, account_state} <- post, into: %{} do
       storage = Map.get(account_state, "storage")
 
       storage =
         for {key, value} <- storage, into: %{} do
-          {hex_to_bin(key), hex_to_bin(value)}
+          {hex_to_bin(key), hex_to_int(value)}
         end
 
       account = %{
@@ -240,21 +242,21 @@ defmodule EvmTest do
         nonce: hex_to_int(account_state["nonce"])
       }
 
-      {hex_to_int(address), account}
+      {hex_to_bin(address), account}
     end
     |> Enum.reject(fn {key, value} -> value == %{} || key == sender end)
     |> Enum.into(%{})
   end
 
   def actual_state(test, mock_account_interface) do
-    sender = hex_to_int(test["exec"]["caller"])
+    sender = hex_to_bin(test["exec"]["caller"])
     mock_account_interface
     |> AccountInterface.dump_storage()
     |> Map.delete(sender)
     |> Enum.into(%{}, fn {address, storage} ->
       storage =
         Enum.into(storage, %{}, fn {key, value} ->
-          {:binary.encode_unsigned(key), :binary.encode_unsigned(value)}
+          {:binary.encode_unsigned(key), value}
         end)
 
       nonce = AccountInterface.get_account_nonce(mock_account_interface, address)

@@ -116,7 +116,7 @@ defmodule EVM.Operation.System do
         exec_env: exec_env,
         machine_state: machine_state
       }) do
-    to = if is_number(to), do: Address.new(to), else: to
+    to = Address.new(to)
     {data, machine_state} = EVM.Memory.read(machine_state, in_offset, in_size)
 
     account_balance =
@@ -219,15 +219,15 @@ defmodule EVM.Operation.System do
   ## Examples
 
       iex> address = 0x0000000000000000000000000000000000000001
-      iex> suicide_address = 0x0000000000000000000000000000000000000001
+      iex> selfdestruct_address = 0x0000000000000000000000000000000000000001
       iex> account_map = %{address => %{balance: 5_000, nonce: 5}}
       iex> account_interface = EVM.Interface.Mock.MockAccountInterface.new(account_map)
-      iex> account_interface = EVM.Operation.System.suicide([suicide_address], %{stack: [], exec_env: %EVM.ExecEnv{address: address, account_interface: account_interface} })[:exec_env].account_interface
+      iex> account_interface = EVM.Operation.System.selfdestruct([selfdestruct_address], %{stack: [], exec_env: %EVM.ExecEnv{address: address, account_interface: account_interface} })[:exec_env].account_interface
       iex> account_interface |> EVM.Interface.AccountInterface.dump_storage |> Map.get(address)
       nil
   """
-  @spec suicide(Operation.stack_args(), Operation.vm_map()) :: Operation.op_result()
-  def suicide([_suicide_address], %{exec_env: exec_env}) do
-    %{exec_env: ExecEnv.suicide_account(exec_env)}
+  @spec selfdestruct(Operation.stack_args(), Operation.vm_map()) :: Operation.op_result()
+  def selfdestruct([_selfdestruct_address], %{exec_env: exec_env}) do
+    %{exec_env: ExecEnv.destroy_account(exec_env)}
   end
 end

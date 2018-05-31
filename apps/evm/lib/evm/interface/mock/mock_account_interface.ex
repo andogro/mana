@@ -133,9 +133,9 @@ defimpl EVM.Interface.AccountInterface, for: EVM.Interface.Mock.MockAccountInter
     )
   end
 
-  @spec suicide_account(EVM.Interface.AccountInterface.t(), EVM.address()) ::
+  @spec destroy_account(EVM.Interface.AccountInterface.t(), EVM.address()) ::
           EVM.Interface.AccountInterface.t()
-  def suicide_account(mock_account_interface, address) do
+  def destroy_account(mock_account_interface, address) do
     account_map =
       mock_account_interface.account_map
       |> Map.delete(address)

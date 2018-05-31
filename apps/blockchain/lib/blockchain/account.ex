@@ -177,7 +177,7 @@ defmodule Blockchain.Account do
 
   @doc """
   Completely removes an account from the world state.
-  This is used, for instance, after a suicide.
+  This is used, for instance, after a selfdestruct.
   This is defined from Eq.(71) and Eq.(80) in the Yellow Paper.
 
   ## Examples

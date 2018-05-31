@@ -85,14 +85,6 @@ defmodule EvmTest do
     }
   end
 
-  def account_storage(storage, db) do
-    Enum.reduce(storage, Trie.new(db), fn {k, v}, trie ->
-      key = <<hex_to_int(k)::size(256)>>
-      value = <<hex_to_int(v)::size(256)>>
-      Trie.update(trie, key, value)
-    end)
-  end
-
   def account_interface(test) do
     account_map = %{
       hex_to_bin(test["exec"]["caller"]) => %{
@@ -244,7 +236,7 @@ defmodule EvmTest do
 
       {hex_to_bin(address), account}
     end
-    |> Enum.reject(fn {key, value} -> value == %{} || key == sender end)
+    |> Map.delete(sender)
     |> Enum.into(%{})
   end
 

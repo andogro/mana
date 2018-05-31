@@ -30,6 +30,8 @@ defmodule EVM.Address do
     |> EVM.Helpers.left_pad_bytes(@size)
   end
 
+  def new(address), do: address
+
   @doc """
   Returns an address given an address and a nonce.
   """

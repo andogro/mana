@@ -215,6 +215,10 @@ defmodule ExWire.Handshake do
     {auth_msg, my_ephemeral_keypair, nonce}
   end
 
+  def new_nonce do
+    ExthCrypto.Math.nonce(@nonce_len)
+  end
+
   @doc """
   Builds a response for an incoming authentication message.
 

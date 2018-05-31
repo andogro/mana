@@ -4,20 +4,22 @@ defmodule ExWire.RLPxTest do
 
   alias ExWire.{RLPx, Handshake}
   alias ExWire.Framing.Secrets
+  alias ExthCrypto.ECIES.ECDH
 
   describe "handles_auth_received/4" do
-    test "decodes auth message from remote, creates ack response, and create secrets" do
+    test "decodes auth message from remote, creates ack response, and creates secrets" do
       creds = build_all_credentials()
+      {her_unencoded_auth_msg, her_encoded_auth_msg} = build_her_auth_message(creds)
 
       {:ok, unencoded_auth_message, my_ack_response, my_secrets} =
         RLPx.handle_auth_received(
-          creds.her_encoded_auth_msg,
+          her_encoded_auth_msg,
           creds.my_ephemeral_key_pair,
           creds.my_nonce,
           creds.my_static_private_key
         )
 
-      assert remove_remote_public_key(unencoded_auth_message) == creds.her_unencoded_auth_msg
+      assert remove_remote_public_key(unencoded_auth_message) == her_unencoded_auth_msg
       assert is_binary(my_ack_response)
       assert %Secrets{} = my_secrets
     end
@@ -26,18 +28,20 @@ defmodule ExWire.RLPxTest do
   describe "decode_auth/2" do
     test "decodes encoded auth message Alice sends us" do
       creds = build_all_credentials()
+      {her_unencoded_auth_msg, her_encoded_auth_msg} = build_her_auth_message(creds)
 
-      {:ok, auth_msg} = RLPx.decode_auth(creds.her_encoded_auth_msg, creds.my_static_private_key)
+      {:ok, auth_msg} = RLPx.decode_auth(her_encoded_auth_msg, creds.my_static_private_key)
 
-      assert creds.her_unencoded_auth_msg == %{auth_msg | remote_ephemeral_public_key: nil}
+      assert her_unencoded_auth_msg == remove_remote_public_key(auth_msg)
     end
   end
 
   describe "prepare_ack_response/2" do
     test "generates an ack response and encodes it, in response to an auth msg" do
       creds = build_all_credentials()
+      {_, her_encoded_auth_msg} = build_her_auth_message(creds)
 
-      {:ok, auth_msg} = RLPx.decode_auth(creds.her_encoded_auth_msg, creds.my_static_private_key)
+      {:ok, auth_msg} = RLPx.decode_auth(her_encoded_auth_msg, creds.my_static_private_key)
 
       {:ok, encoded_ack_resp} = RLPx.prepare_ack_response(auth_msg, creds.my_ephemeral_key_pair)
 
@@ -50,14 +54,15 @@ defmodule ExWire.RLPxTest do
   describe "derive_shared_secrets/2" do
     test "it generates all shared secrets from an auth_msg" do
       creds = build_all_credentials()
+      {_, her_encoded_auth_msg} = build_her_auth_message(creds)
 
-      {:ok, auth_msg} = RLPx.decode_auth(creds.her_encoded_auth_msg, creds.my_static_private_key)
+      {:ok, auth_msg} = RLPx.decode_auth(her_encoded_auth_msg, creds.my_static_private_key)
       {:ok, encoded_ack_resp} = RLPx.prepare_ack_response(auth_msg, creds.my_ephemeral_key_pair)
 
       {:ok, secrets} =
         RLPx.derive_shared_secrets(
           auth_msg,
-          creds.her_encoded_auth_msg,
+          her_encoded_auth_msg,
           encoded_ack_resp,
           creds.my_ephemeral_key_pair,
           creds.my_nonce
@@ -75,8 +80,8 @@ defmodule ExWire.RLPxTest do
     keys = build_keys()
 
     keys
-    |> Map.merge(build_my_credentials(keys))
-    |> Map.merge(build_her_credentials(keys))
+    |> Map.merge(build_my_credentials())
+    |> Map.merge(build_her_credentials())
   end
 
   def build_keys do
@@ -88,45 +93,35 @@ defmodule ExWire.RLPxTest do
     }
   end
 
-  def build_my_credentials(keys) do
-    {my_auth_msg, my_ephemeral_key_pair, my_nonce} =
-      Handshake.build_auth_msg(
-        keys.my_static_public_key,
-        keys.my_static_private_key,
-        keys.her_static_public_key
-      )
-
-    {:ok, encoded_auth_msg} =
-      my_auth_msg
-      |> Handshake.Struct.AuthMsgV4.serialize()
-      |> Handshake.EIP8.wrap_eip_8(keys.her_static_public_key, my_ephemeral_key_pair)
-
+  def build_my_credentials do
     %{
-      my_unencoded_auth_msg: my_auth_msg,
-      my_ephemeral_key_pair: my_ephemeral_key_pair,
-      my_nonce: my_nonce,
-      my_encoded_auth_msg: encoded_auth_msg
+      my_ephemeral_key_pair: ECDH.new_ecdh_keypair(),
+      my_nonce: Handshake.new_nonce()
     }
   end
 
-  def build_her_credentials(keys) do
-    {her_auth_msg, her_ephemeral_key_pair, her_nonce} =
+  def build_her_credentials do
+    %{
+      her_ephemeral_key_pair: ECDH.new_ecdh_keypair(),
+      her_nonce: Handshake.new_nonce()
+    }
+  end
+
+  def build_her_auth_message(creds) do
+    {auth_msg, _, _} =
       Handshake.build_auth_msg(
-        keys.her_static_public_key,
-        keys.her_static_private_key,
-        keys.my_static_public_key
+        creds.her_static_public_key,
+        creds.her_static_private_key,
+        creds.my_static_public_key,
+        creds.her_nonce,
+        creds.her_ephemeral_key_pair
       )
 
     {:ok, encoded_auth_msg} =
-      her_auth_msg
+      auth_msg
       |> Handshake.Struct.AuthMsgV4.serialize()
-      |> Handshake.EIP8.wrap_eip_8(keys.my_static_public_key, her_ephemeral_key_pair)
+      |> Handshake.EIP8.wrap_eip_8(creds.my_static_public_key, creds.her_ephemeral_key_pair)
 
-    %{
-      her_unencoded_auth_msg: her_auth_msg,
-      her_ephemeral_key_pair: her_ephemeral_key_pair,
-      her_nonce: her_nonce,
-      her_encoded_auth_msg: encoded_auth_msg
-    }
+    {auth_msg, encoded_auth_msg}
   end
 end
